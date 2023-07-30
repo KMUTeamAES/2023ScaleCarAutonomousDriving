@@ -1,41 +1,60 @@
-#!/usr/bin/env python3
 import cv2
 import numpy as np
+import rospy 
+from std_msgs.msg import Float64
+
+rospy.init_node('lane_detection')
+steer_angle_pub = rospy.Publisher('steering_angle', Float64, queue_size=10)
+rate = rospy.Rate(10)
 
 video = cv2.VideoCapture('lane_video.mp4')
 
 ##functions
-def draw_sliding_windows(frame, left_fit, right_fit, margin, height, n_win):
-    # 빈 캔버스 생성 (원본 영상 위에 그림을 그리기 위해)
-    window_canvas = np.zeros_like(frame)
-    window_height = np.int(height / n_win)  # 윈도우 높이
+## draw_sliding_windows 이건 안 봐도 됨
+# def draw_sliding_windows(frame, left_fit, right_fit, margin, height, n_win):
+#    빈 캔버스 생성 (원본 영상 위에 그림을 그리기 위해)
+    # window_canvas = np.zeros_like(frame)
+    # window_height = np.int(height / n_win)  # 윈도우 높이
+# 
+ #   좌측차선의 윈도우와 우측 차선의 윈도우에 대해
+    # for window in range(n_win):
+        # win_y_low = height - (window + 1) * window_height
+        # win_y_high = height - window * window_height
+# 
+  #      좌측차선의 윈도우 위 아래 x좌표
+        # win_x_left_low = left_fit[0] * win_y_low ** 2 + left_fit[1] * win_y_low + left_fit[2] - margin
+        # win_x_left_high = left_fit[0] * win_y_high ** 2 + left_fit[1] * win_y_high + left_fit[2] + margin
+# 
+   #     우측차선의 윈도우 위 아래 x좌표
+        # win_x_right_low = right_fit[0] * win_y_low ** 2 + right_fit[1] * win_y_low + right_fit[2] - margin
+        # win_x_right_high = right_fit[0] * win_y_high ** 2 + right_fit[1] * win_y_high + right_fit[2] + margin
+# 
+    #    윈도우 영역을 다각형 형태로 정의
+        # left_pts = np.array([[win_x_left_low, win_y_low], [win_x_left_high, win_y_high]], np.int32)
+        # right_pts = np.array([[win_x_right_low, win_y_low], [win_x_right_high, win_y_high]], np.int32)
+        # pts = np.concatenate((left_pts, right_pts[::-1]))
+# 
+     #   윈도우 영역을 캔버스 위에 그립니다.
+        # cv2.fillPoly(window_canvas, [pts], (0, 255, 0))
+# 
+ #   원본 영상 위에 윈도우 캔버스를 합성합니다.
+    # result = cv2.addWeighted(frame, 1, window_canvas, 0.3, 0)
+# 
+    # return result
+def find_ref_distance(left_x_base,right_x_base):
+    ref_D_left=(640-left_x_base)*-1
+    ref_D_right=right_x_base-640
+    # print("ref_D_left",ref_D_left)
+    # print("ref_D_right",ref_D_right)
+    return ref_D_left + ref_D_right
+def find_ref_angle(left_bottom_x, left_top_x, right_bottom_x, right_top_x):
+    win_bottom_y = 0#고정값
+    win_top_y = 648#고정값
+    Theta_left = (left_top_x - left_bottom_x)/(win_top_y - win_bottom_y)
+    Theta_right = (right_top_x - right_bottom_x)/(win_top_y - win_bottom_y)
 
-    # 좌측차선의 윈도우와 우측 차선의 윈도우에 대해
-    for window in range(n_win):
-        win_y_low = height - (window + 1) * window_height
-        win_y_high = height - window * window_height
-
-        # 좌측차선의 윈도우 위 아래 x좌표
-        win_x_left_low = left_fit[0] * win_y_low ** 2 + left_fit[1] * win_y_low + left_fit[2] - margin
-        win_x_left_high = left_fit[0] * win_y_high ** 2 + left_fit[1] * win_y_high + left_fit[2] + margin
-
-        # 우측차선의 윈도우 위 아래 x좌표
-        win_x_right_low = right_fit[0] * win_y_low ** 2 + right_fit[1] * win_y_low + right_fit[2] - margin
-        win_x_right_high = right_fit[0] * win_y_high ** 2 + right_fit[1] * win_y_high + right_fit[2] + margin
-
-        # 윈도우 영역을 다각형 형태로 정의
-        left_pts = np.array([[win_x_left_low, win_y_low], [win_x_left_high, win_y_high]], np.int32)
-        right_pts = np.array([[win_x_right_low, win_y_low], [win_x_right_high, win_y_high]], np.int32)
-        pts = np.concatenate((left_pts, right_pts[::-1]))
-
-        # 윈도우 영역을 캔버스 위에 그립니다.
-        cv2.fillPoly(window_canvas, [pts], (0, 255, 0))
-
-    # 원본 영상 위에 윈도우 캔버스를 합성합니다.
-    result = cv2.addWeighted(frame, 1, window_canvas, 0.3, 0)
-
-    return result
-
+    return Theta_left - Theta_right
+    
 def SlidingWindows(binary_img):
     n_win = 10  # 좌,우 차선별 탐지 윈도우의 개수, 적어지면 샘플링이 적어지는 샘이라서 급커브 같은데서 영역을 정확히 못잡아냄
     window_height = np.int(binary_img.shape[0] / n_win)  # 윈도우 높이
@@ -92,6 +111,17 @@ def SlidingWindows(binary_img):
 
         if len(good_right_indices) > min_pix:
             right_x_current = np.int(np.mean(non_zero_x[good_right_indices]))
+        if window==0:
+            left_bottom_x = (win_x_left_low+win_x_left_high)/2
+            right_bottom_x = (win_x_right_low+win_x_right_high)/2
+            # print("left_bottom_x",left_bottom_x)
+            # print("right_bottom_x",right_bottom_x)
+        elif window==9:
+            left_top_x = (win_x_left_low+win_x_left_high)/2
+            right_top_x = (win_x_right_low+win_x_right_high)/2
+            # print("left_top_x",left_top_x)
+            # print("right_top_x",right_top_x)
+
 
     # 배열 합치기
     # 이 부분은 디텍팅 된 차선의 픽셀의 좌표 집합임.
@@ -114,7 +144,8 @@ def SlidingWindows(binary_img):
     out_img[non_zero_y[left_lane_indices], non_zero_x[left_lane_indices]] = [255, 255, 255]
     out_img[non_zero_y[right_lane_indices], non_zero_x[right_lane_indices]] = [255, 255, 255]
 
-    return out_img
+
+    return out_img, left_bottom_x, left_top_x, right_bottom_x, right_top_x
 #, left_fit, right_fit
 def histogram(frame):
     
@@ -125,8 +156,8 @@ def histogram(frame):
 
     left_x_base = np.argmax(histogram_left)
     right_x_base = np.argmax(histogram_right)+frame.shape[1]//2
-    print("left_x_base",left_x_base)
-    print("right_x_base",right_x_base)
+    # print("left_x_base",left_x_base)
+    # print("right_x_base",right_x_base)
 
     return left_x_base,right_x_base
 
@@ -183,6 +214,9 @@ src_left_top =(580,460)
 src_left_bottom =(203,720)
 src_right_bottom = (1127,720)
 src_right_top = (703,460)
+default_angle = 0.5 #radian
+k1 = 0.01
+k2 = 0.01
 
 src_points=np.float32([src_left_top,src_left_bottom,src_right_bottom,src_right_top])
 dst_points=np.float32([(320, 0), (320, 720), (960, 720), (960, 0)])
@@ -205,7 +239,21 @@ while video.isOpened():
 
     left_x_base,right_x_base = histogram(bird_line_view)
     # left_fit, right_fit = SlidingWindows(bird_line_view)
-    out_image= SlidingWindows(bird_line_view)
+    out_image, left_bottom_x, left_top_x, right_bottom_x, right_top_x= SlidingWindows(bird_line_view)
+    ref_distance = find_ref_distance(left_x_base,right_x_base)
+    # print("ref_distance = ",ref_distance)
+    ref_angle = find_ref_angle(left_bottom_x, left_top_x, right_bottom_x, right_top_x)
+    # print("ref_angle = ",ref_angle)
+    steer_angle = (k1*ref_distance)+(k2*ref_angle)-0.2
+    print("steer_angle = ",steer_angle)
+    # print("left_Theta = ",Theta_left + default_angle)
+    # print("right_Theta = ",Theta_right + default_angle)
+    if steer_angle>0.0 and steer_angle<1.0:
+        steer_angle_msg = Float64()
+        steer_angle_msg.data = steer_angle
+        steer_angle_pub.publish(steer_angle_msg)
+        rate.sleep()
+
 
     # result = draw_sliding_windows(bird_line_view,left_fit,right_fit,margin=100, height=height, n_win=10)
         # 'q' 키를 누르면 동영상 재생 종료
