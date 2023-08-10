@@ -35,18 +35,14 @@ class lane_detect:
 			bird_view = self.bird_eye_view(frame, height, width)
 			lines = self.find_lanes(bird_view)
 					
-			cv2.imshow("OG_frame",frame)
-			cv2.imshow('bird_view',bird_view)
+			# cv2.imshow("OG_frame",frame)
+			# cv2.imshow('bird_view',bird_view)
 			key = cv2.waitKey(1)
 			if key ==ord('q'):
 				rospy.signal_shutdown("User requested shutdown")
 		except Exception as e:
 			print("Error:", e)
-	# def calculate_angle(self,lines):
-		# for line in lines:
 
-
-	# def calculate_steering_angle()
 	def bird_eye_view(self,frame,height,width):
 		M = cv2.getPerspectiveTransform(self.src_points, self.dst_points)
 		warp_frame = cv2.warpPerspective(frame,M,(width,height))
@@ -62,15 +58,35 @@ class lane_detect:
 	    # ROI(Region of Interest) 설정
 		height, width = edges.shape[:2]
 		# roi_vertices = [(0, height), (width / 2, 0), (width, height)]
-		roi_vertices = [(0, 380),(0,0), (width, 0), (width, 380)]
+		roi_vertices = [(0, 380),(0,260), (width, 260), (width, 380)]
 		mask = np.zeros_like(edges)
 		cv2.fillPoly(mask, np.array([roi_vertices], np.int32), 255)
 		masked_edges = cv2.bitwise_and(edges, mask)
-	
+
+		# roi_left_half = masked_edges[:,0:width//2]
+		# roi_right_half = masked_edges[:,width//2:]
+
 	    # 허프 변환을 통한 직선 검출
-		lines = cv2.HoughLinesP(masked_edges, rho=1, theta=np.pi/180, threshold=50, minLineLength=50, maxLineGap=100)
+		# lines = cv2.HoughLinesP(masked_edges, rho=1, theta=np.pi/180, threshold=50, minLineLength=50, maxLineGap=100)
 		#threshold값 낮을수록 직선 더 잘 검출 
 		#lines라는 변수는 2차원 배열 (x1,y1,x2,y2)가 행에 저장돼 있음. 즉 무한 by 4 형태
+
+		lines = cv2.HoughLinesP(masked_edges, rho=1, theta=np.pi/180, threshold=50, minLineLength=50, maxLineGap=100)
+		# left_lines = cv2.HoughLinesP(roi_left_half, rho=1, theta=np.pi/180, threshold=50, minLineLength=50, maxLineGap=100)
+		# right_lines = cv2.HoughLinesP(roi_right_half, rho=1, theta=np.pi/180, threshold=50, minLineLength=50, maxLineGap=100)
+		# 
+		# if len(left_lines)>len(right_lines):
+			# print("왼쪽차선입니다")
+		# elif len(left_lines)<len(right_lines):
+			# print("오른쪽 차선입니다")
+		# else:
+			# pass
+			# print("같습니다")
+		
+		# if left_lines>right_lines:
+			# print("왼쪽차선입니다!")
+		# else:
+			# print("오른쪽 차선입니다!")
 		line_image = np.zeros_like(image)
 		if lines is not None:
 			print("line found")
@@ -95,16 +111,16 @@ class lane_detect:
 							self.steer_msg.data = self.aver_steer-0.2
 		else:
 			print("line not found")
+		print("steering_angle",self.steer_msg.data)
 		self.steer_angle_pub.publish(self.steer_msg.data)
 		self.rate.sleep()
 		#원본 이미지와 직선 이미지 합치기
-		result = cv2.addWeighted(image,0.8,line_image,1,0)
-		# cv2.circle(result, (320,380), 5, (0,255,0), 2)
-		cv2.imshow("Hough_lane",result)
-		# cv2.waitKey(1)
-		# cv2.destroyAllwindows()
-		return lines
+		# result = cv2.addWeighted(image,0.8,line_image,1,0)
+		# cv2.imshow("Hough_lane",result)
 
+		# return lines
+	# def decision_LOR(self,lines):
+		
 def main():
 	start = lane_detect()
 	rospy.spin()
