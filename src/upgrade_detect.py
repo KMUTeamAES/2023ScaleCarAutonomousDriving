@@ -123,7 +123,7 @@ class lane_detect:
 	    # ROI(Region of Interest) 설정
 		height, width = edges.shape[:2]
 		# roi_vertices = [(0, height), (width / 2, 0), (width, height)]
-		roi_vertices = [(0, 380),(0,260), (width, 260), (width, 380)]
+		roi_vertices = [(0, 380),(0,150), (width, 150), (width, 380)]
 		mask = np.zeros_like(edges)
 		cv2.fillPoly(mask, np.array([roi_vertices], np.int32), 255)
 		masked_edges = cv2.bitwise_and(edges, mask)
@@ -132,7 +132,7 @@ class lane_detect:
 		# roi_right_half = masked_edges[:,width//2:]
 
 	    # 허프 변환을 통한 직선 검출
-		lines = cv2.HoughLinesP(masked_edges, rho=1, theta=np.pi/180, threshold=50, minLineLength=50, maxLineGap=100)
+		lines = cv2.HoughLinesP(masked_edges, rho=1, theta=np.pi/180, threshold=50, minLineLength=50, maxLineGap=10)
 		#threshold값 낮을수록 직선 더 잘 검출 
 		#lines라는 변수는 2차원 배열 (x1,y1,x2,y2)가 행에 저장돼 있음. 즉 무한 by 4 형태
 
@@ -163,7 +163,7 @@ class lane_detect:
 				cv2.line(line_image, (x1, y1), (x2, y2), (0, 255, 0), thickness=2)
 				# print("x1",x1)
 				# print("x2",x2)
-				data[line] = x1
+				data.append(x2)
 		
 				if x2 - x1 !=0:
 					slope = (y2-y1) / (x2-x1)
@@ -175,20 +175,27 @@ class lane_detect:
 							if abs(slope_degree)>self.aver_ang-3:
 								self.steer_msg.data = self.aver_steer
 							else:
-								self.steer_msg.data = self.aver_steer+0.25
+								self.steer_msg.data = self.aver_steer+0.2
 						else: #좌회전
 							if slope_degree>self.aver_ang-3:
 								self.steer_msg.data = self.aver_steer
 							else:
-								self.steer_msg.data = self.aver_steer-0.25
+								self.steer_msg.data = self.aver_steer-0.2
 					else:
 						self.status_msg.data = 5
-			if abs(max(data)-320) > abs(320-min(data)) :
-				self.steer_msg.data = self.aver_steer + 0.12
-				print("check")
-			elif abs(max(data)-320) < abs(320-min(data)) :
-				self.steer_msg.data = self.aver_steer - 0.12
-				print("double check")	
+			if abs(max(data)-min(data))<30:
+				if min(data) > 320:
+					self.steer_msg.data = self.aver_steer - 0.2
+				else :
+					self.steer_msg.data = self.aver_steer + 0.35
+					print("enter")
+			else :
+				if abs(max(data)-320) > abs(320-min(data)) :
+					self.steer_msg.data = self.aver_steer + 0.2
+					print("check")
+				elif abs(max(data)-320) < abs(320-min(data)) :
+					self.steer_msg.data = self.aver_steer - 0.2
+					print("double check")	
 
 		else:
 			print("line not found")
