@@ -163,24 +163,32 @@ class lane_detect:
 				cv2.line(line_image, (x1, y1), (x2, y2), (0, 255, 0), thickness=2)
 				# print("x1",x1)
 				# print("x2",x2)
-				if x2 - x1 !=0:
-					slope = (y2-y1) / (x2-x1)
-					slope_degree = np.arctan(slope)*180/np.pi
-					print("slope_degree",slope_degree)
-					if abs(slope)>0.5:
-						self.status_msg.data = 0
-						if slope_degree < 0: #우회전
-							if abs(slope_degree)>self.aver_ang-3:
-								self.steer_msg.data = self.aver_steer
-							else:
-								self.steer_msg.data = self.aver_steer+0.12
-						else: #좌회전
-							if slope_degree>self.aver_ang-3:
-								self.steer_msg.data = self.aver_steer
-							else:
-								self.steer_msg.data = self.aver_steer-0.12
-					else:
-						self.status_msg.data = 5
+
+				if abs(max(x1)-320) > abs(320-min(x1)) :
+					self.steer_msg.data = self.aver_steer + 0.12
+					print("check")
+				elif abs(max(x1)-320) < abs(320-min(x1)) :
+					self.steer_msg.data = self.aver_steer - 0.12
+					print("double check")
+				else :
+					if x2 - x1 !=0:
+						slope = (y2-y1) / (x2-x1)
+						slope_degree = np.arctan(slope)*180/np.pi
+						print("slope_degree",slope_degree)
+						if abs(slope)>0.5:
+							self.status_msg.data = 0
+							if slope_degree < 0: #우회전
+								if abs(slope_degree)>self.aver_ang-3:
+									self.steer_msg.data = self.aver_steer
+								else:
+									self.steer_msg.data = self.aver_steer+0.25
+							else: #좌회전
+								if slope_degree>self.aver_ang-3:
+									self.steer_msg.data = self.aver_steer
+								else:
+									self.steer_msg.data = self.aver_steer-0.25
+						else:
+							self.status_msg.data = 5
 
 		else:
 			print("line not found")
