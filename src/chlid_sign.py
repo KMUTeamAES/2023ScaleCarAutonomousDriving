@@ -64,13 +64,13 @@ class Sign():
         # msg = Float32()
         # msg.data = 0.1
         # self.pub_cmd_vel.publish(msg.data)
-        mode = 1 # 1이 어린이 보호 구역 모드
+        mode = 100 # 1이 어린이 보호 구역 모드
         self.mode_pub.publish(mode)
     def basic_speed(self): # 어린이 보호 구역 해제 될 때, 원래 스피드로
         # msg = Float32()
         # msg.data = 1
         # self.pub_cmd_vel.publish(msg.data)
-        mode = 0 # 0이 일반주행 모드
+        mode = 101 # 0이 일반주행 모드
         self.mode_pub.publish(mode)
 
     def show_camera_image(self):
