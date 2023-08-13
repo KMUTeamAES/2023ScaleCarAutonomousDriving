@@ -17,6 +17,7 @@ class Sign():
         self.is_child_zone = False
         self.pub_cmd_vel = rospy.Publisher('/cmd_vel', Float32, queue_size=10) # 속도 정보를 발행하는 곳
         self.bridge = CvBridge() # openCV와 ros 메시지 사이의 형식을 변환해주는 역할을 하는 객체
+        self.mode_pub = rospy.Publisher('chlidren_zone', Int32, queue_size=10)
 
         rospy.Subscriber("/fiducial_vertices", FiducialArray, self.child_sign_callback) 
         #"/fiducial_vertices" 토픽에서 FiducialArray 메시지를 받아 어린이구역 정보 받음
@@ -60,40 +61,17 @@ class Sign():
 
     def reduce_speed(self): # 이 부분은 basic_drive 파일에다가 옮겨서 구현해야함 => 그냥 여기다가 구현
         # 어린이 보호구역인 경우 속도를 줄이는 로직을 여기에 구현
-        msg = Float32()
-        msg.data = 0.1
-        self.pub_cmd_vel.publish(msg)
-        # twist_msg = Twist() #geometry_msgs.msg 모듈의 Twist 메시지 객체를 생성합니다. 이 메시지는 로봇의 선속도(linear velocity)와 각속도(angular velocity) 정보를 담을 수 있음
-        # twist_msg.linear.x = 0.1  # 여기서 0.1은 줄인 주행 속도 (수정 가능)
-        # twist_msg.angular.z = 0.0
-        # self.pub_cmd_vel.publish(twist_msg)
-        # linear_speed = 0.1  # 원하는 주행 속도 설정
-        #basic_drive.drive_with_speed(linear_spee)
+        # msg = Float32()
+        # msg.data = 0.1
+        # self.pub_cmd_vel.publish(msg.data)
+        mode = 1 # 1이 어린이 보호 구역 모드
+        self.mode_pub.publish(mode)
     def basic_speed(self): # 어린이 보호 구역 해제 될 때, 원래 스피드로
-        msg = Float32()
-        msg.data = 1
-        self.pub_cmd_vel.publish(msg)
-    '''
-    이런식으로 베이직 드라이브 파일에 구현
-    import rospy
-    from std_msgs.msg import Float32
-
-    class BasicDrive:
-        def __init__(self):
-            self.pub_cmd_vel = rospy.Publisher('/cmd_vel', Float32, queue_size=10)
-
-        def drive_with_speed(self, linear_speed):
-            self.pub_cmd_vel.publish(linear_speed)
-
-    if __name__ == "__main__":
-        rospy.init_node("basic_drive")
-        basic_drive = BasicDrive()
-
-        # 주행 속도 조절
-        linear_speed = 0.1  # 여기서 0.1은 주행 속도 (수정 가능)
-        basic_drive.drive_with_speed(linear_speed)
-
-    '''
+        # msg = Float32()
+        # msg.data = 1
+        # self.pub_cmd_vel.publish(msg.data)
+        mode = 0 # 0이 일반주행 모드
+        self.mode_pub.publish(mode)
 
     def show_camera_image(self):
         # 카메라 이미지를 OpenCV 이미지로 변환
