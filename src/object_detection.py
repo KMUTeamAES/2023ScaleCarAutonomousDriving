@@ -3,7 +3,7 @@
 # 모듈 가져오기
 import rospy
 from geometry_msgs.msg import Twist
-from std_msgs.msg import Int32
+from std_msgs.msg import Int64
 from std_msgs.msg import Bool
 from sensor_msgs.msg import LaserScan
 from math import *
@@ -17,11 +17,11 @@ class E_STOP:
         # 노드 이름 설정
         rospy.init_node("object_detection")
         # 노드 역할 설정
-        self.ctrl_pub = rospy.Publisher("obtacles_detect",Int32,queue_size=10)
+        self.ctrl_pub = rospy.Publisher("objec_flag",Int64,queue_size=10)
         rospy.Subscriber("/scan",LaserScan,self.lidar_CB)
         rospy.Subscriber("L_or_R",Bool,self.LR_CB)
         lidar_msg = LaserScan()
-        self.direct_msg.data = Bool()
+        self.direct_msg = Int64()
         
         
     # 함수 설정
@@ -37,7 +37,7 @@ class E_STOP:
         static_check = 0
         #avoid_degree = []
         #avoid_index=[]
-        ctrl_msg = Int32() # 0 : 정상 , 1 : 정적(왼쪽 차선) , 2 : 정적(오른쪽 차선), 3 : 동적 
+        ctrl_msg = Int64() # 0 : 정상 , 1 : 정적(왼쪽 차선) , 2 : 정적(오른쪽 차선), 3 : 동적 
         os.system('clear')
         degrees = [(msg.angle_min + msg.angle_increment*index)*180/pi for index, value in enumerate(msg.ranges)]
         # print(degrees)
@@ -58,19 +58,20 @@ class E_STOP:
 
         
         if static_check > 15: # 측정하면서 값 수정 , 물체크기 
-            if self.direct_msg.data == True: # left
-                print("Left_Static_Obtacle")
-                ctrl_msg = 1
-            else:
-                print("Rigth_Static_Obtacle")
-                ctrl_msg = 2
+            ctrl_msg = 1
+            # if self.direct_msg.data == True: # left
+                # print("Left_Static_Obtacle")
+                # ctrl_msg = 1
+            # else:
+                # print("Rigth_Static_Obtacle")
+                # ctrl_msg = 2
             
         elif dynamic_check > 10: # 측정하면서 값 수정 , 물체크기 
             print("Dynamic_Obtacle")
-            ctrl_msg = 3
+            ctrl_msg = 2
         else :
             print("Safe")
-            ctrl_msg = 0
+            # ctrl_msg = 0
         print(ctrl_msg)
         #print(msg.ranges)
         self.ctrl_pub.publish(ctrl_msg)

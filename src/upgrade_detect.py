@@ -11,9 +11,10 @@ class lane_detect:
 		rospy.init_node('lane_detection')
 		self.steer_angle_pub = rospy.Publisher('steering_angle', Float64, queue_size=10)
 		self.status_pub = rospy.Publisher('status', Int64, queue_size=10)
-		self.L_or_R_pub = rospy.Publisher('L_or_R', Bool, queue_size=10)
+		# self.L_or_R_pub = rospy.Publisher('L_or_R', Int64, queue_size=10)
+		self.child_pub = rospy.Publisher('child',Int64,queue_size=10)
 		rospy.Subscriber("/usb_cam/image_rect_color",Image,self.image_CB)
-		# rospy.Subscriber("/fiducial_vertices", FiducialArray, self.child_sign_callback)
+		rospy.Subscriber("/fiducial_vertices", FiducialArray, self.child_sign_callback)
 		rospy.Subscriber("objec_flag",Int64,self.object_CB)
 		self.bridge = CvBridge()
 		self.rate = rospy.Rate(100)
@@ -22,6 +23,7 @@ class lane_detect:
 		self.steer_msg = Float64()
 		self.status_msg = Int64()
 		self.L_or_R_msg = Bool()
+		self.child_msg = Int64()
 		
 		##bird_variable
 		self.left_top = (285,270)
@@ -42,14 +44,16 @@ class lane_detect:
 			height, width = frame.shape[:2]
 			bird_view = self.bird_eye_view(frame, height, width)
 			self.find_lanes(bird_view)
-			if self.ob_flag !=0:
-				self.decision_L_or_R(frame)
-				self.ob_flag = 0
-			else:
-				pass
-					
+			if self.status_msg.data == 0:
+				if self.ob_flag ==1:
+					self.decision_L_or_R(frame)
+					# self.ob_flag = 0
+				elif self.ob_flag ==2:
+					self.status_msg.data = 3
+				# self.L_or_R_pub.publish(self.L_or_R_msg.data)
 			# cv2.imshow("OG_frame",frame)
 			# cv2.imshow('bird_view',bird_view)
+			self.status_pub.publish(self.status_msg.data)
 			key = cv2.waitKey(1)
 			if key ==ord('q'):
 				rospy.signal_shutdown("User requested shutdown")
@@ -63,25 +67,21 @@ class lane_detect:
 			self.ob_flag = msg.data
 		else:
 			pass
+	def histogram(self,frame):
+    
+		histogram_left = np.sum(frame[frame.shape[0]//2:,:frame.shape[1]//2], axis=0)
+		histogram_right = np.sum(frame[frame.shape[0]//2:,frame.shape[1]//2:], axis=0)
 
-	# def child_sign_callback(self,data):
-	#     if len(data.fiducials) > 0: # 신호가 들어오면 수행
-	# 		self.sign_id = data.fiducials[0].fiducial_id # 첫번째 신호의 id를 저장하고 발행
-	# 		self.sign_id_pub.publish(self.sign_id)
-	# 		self.pub_cnt = 0
-
-    #         # 마커 인식 후 어린이 보호구역인지 확인 (마커 ID 100 어린이 보호구역)
-    #     if self.sign_id == 100:
-    #         self.is_child_zone = True
-    #     elif self.sign_id == 101: # 끝나는 지점 마커 확인(마커 ID 101 어린이 보호구역 해제)
-    #         self.is_child_zone = False
-    #     else:
-    #         self.pub_cnt += 1
-    #         if self.pub_cnt > 20: 
-    #             # 20회 이상 publishing을 한 경우에 id 0으로 초기화 하고 어린이 보호구역 해제 (이게 약간 일정 시간동안만 구역 유지하는 느낌) => * 수정 아닐 수 있음
-    #             self.sign_id_pub.publish(0)
-    #             self.pub_cnt = 0
-    #             self.is_child_zone = False
+		left_x_base = np.argmax(histogram_left)
+		right_x_base = np.argmax(histogram_right)+frame.shape[1]//2
+    	
+		return left_x_base,right_x_base
+	def child_sign_callback(self,data):
+		if len(data.fiducials) > 0: # 신호가 들어오면 수행
+			self.child_msg.data = data.fiducials[0].fiducial_id # 첫번째 신호의 id를 저장하고 발행
+			self.child_pub.publish(self.child_msg.data)
+		else:
+			pass
 
 	def bird_eye_view(self,frame,height,width):
 		M = cv2.getPerspectiveTransform(self.src_points, self.dst_points)
@@ -101,12 +101,12 @@ class lane_detect:
 		right_pixel_count = cv2.countNonZero(right_half)
 
 		if left_pixel_count > right_pixel_count:
-			self.L_or_R_msg.data = False
+			self.status_msg.data = 1
 			print("왼쪽입니다")
 		else:
-			self.L_or_R_msg.data = True
+			self.status_msg.data = 2
 			print("오른쪽입니다")
-		self.L_or_R_pub.publish(self.L_or_R_msg.data)
+		# self.L_or_R_pub.publish(self.L_or_R_msg.data)
 
 	def laba_decision(self,frame):
 		hsv = cv2.cvtColor(frame,cv2.COLOR_BGR2HSV)
@@ -114,12 +114,14 @@ class lane_detect:
 		red_pixel_count = cv2.countNonZero(mask_red)
 
 	def find_lanes(self,image):
-	    # 그레이스케일 이미지로 변환
+		# 그레이스케일 이미지로 변환
 		gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-	
 	    # 엣지 검출
 		edges = cv2.Canny(gray,threshold1=50, threshold2=150)
-
+		
+		# left_x_base,right_x_base = self.histogram(image)
+		# print("left",left_x_base)
+		# print("right",right_x_base)
 	    # ROI(Region of Interest) 설정
 		height, width = edges.shape[:2]
 		# roi_vertices = [(0, height), (width / 2, 0), (width, height)]
@@ -136,34 +138,12 @@ class lane_detect:
 		#threshold값 낮을수록 직선 더 잘 검출 
 		#lines라는 변수는 2차원 배열 (x1,y1,x2,y2)가 행에 저장돼 있음. 즉 무한 by 4 형태
 
-		# lines = cv2.HoughLinesP(masked_edges, rho=1, theta=np.pi/180, threshold=50, minLineLength=50, maxLineGap=100)
-		# left_lines = cv2.HoughLinesP(roi_left_half, rho=1, theta=np.pi/180, threshold=30, minLineLength=30, maxLineGap=30)
-		# right_lines = cv2.HoughLinesP(roi_right_half, rho=1, theta=np.pi/180, threshold=30, minLineLength=30, maxLineGap=30)
-		# 
-		# if len(left_lines)>len(right_lines):##false: left true: right
-			# self.L_or_R_msg.data = False
-			# print("왼쪽차선입니다")
-		# elif len(left_lines)<len(right_lines):
-			# self.L_or_R_msg.data = True
-			# print("오른쪽 차선입니다")
-		# else:
-			# pass
-		# min_height = min(roi_left_half.shape[1], roi_right_half.shape[1])
-		# left_lines = left_lines[:min_height, :]
-		# right_lines = right_lines[:min_height, :]
-
-		# 두 배열을 수평으로 결합
-		# lines = np.concatenate((left_lines, right_lines), axis=0)##axis=0은 행방향으로 합친 것 
-		data = []
-		line_image = np.zeros_like(image)
+		#line_image = np.zeros_like(image)
 		if lines is not None:
 			print("line found")
 			for line in lines:
 				x1, y1, x2, y2 = line[0]
-				cv2.line(line_image, (x1, y1), (x2, y2), (0, 255, 0), thickness=2)
-				# print("x1",x1)
-				# print("x2",x2)
-				data[line] = x1
+				#cv2.line(line_image, (x1, y1), (x2, y2), (0, 255, 0), thickness=2)
 		
 				if x2 - x1 !=0:
 					slope = (y2-y1) / (x2-x1)
@@ -174,27 +154,24 @@ class lane_detect:
 						if slope_degree < 0: #우회전
 							if abs(slope_degree)>self.aver_ang-3:
 								self.steer_msg.data = self.aver_steer
+							elif abs(slope_degree) >80:
+								self.steer_msg.data = self.aver_steer+0.2
 							else:
-								self.steer_msg.data = self.aver_steer+0.25
+								self.steer_msg.data = self.aver_steer+0.4
 						else: #좌회전
 							if slope_degree>self.aver_ang-3:
 								self.steer_msg.data = self.aver_steer
+							elif slope_degree>80:
+								self.steer_msg.data = self.aver_steer-0.2
 							else:
-								self.steer_msg.data = self.aver_steer-0.25
+								self.steer_msg.data = self.aver_steer-0.4
 					else:
 						self.status_msg.data = 5
-			if abs(max(data)-320) > abs(320-min(data)) :
-				self.steer_msg.data = self.aver_steer + 0.12
-				print("check")
-			elif abs(max(data)-320) < abs(320-min(data)) :
-				self.steer_msg.data = self.aver_steer - 0.12
-				print("double check")	
-
 		else:
 			print("line not found")
 		print("steering_angle",self.steer_msg.data)
 		self.steer_angle_pub.publish(self.steer_msg.data)
-		self.status_pub.publish(self.status_msg.data)
+		# self.status_pub.publish(self.status_msg.data)
 		self.rate.sleep()
 		#원본 이미지와 직선 이미지 합치기
 		result = cv2.addWeighted(image,0.8,line_image,1,0)
